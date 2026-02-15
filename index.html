@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pro Student Toolkit</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<style>
+body{
+margin:0;
+font-family:Segoe UI,sans-serif;
+background:linear-gradient(135deg,#4f46e5,#ec4899);
+color:white;
+}
+
+.header{
+text-align:center;
+padding:20px;
+font-size:22px;
+font-weight:bold;
+background:rgba(0,0,0,0.2);
+}
+
+.section{
+min-height:100vh;
+display:flex;
+justify-content:center;
+align-items:center;
+flex-direction:column;
+padding:20px;
+}
+
+.card{
+background:white;
+color:black;
+width:95%;
+max-width:1100px;
+padding:25px;
+border-radius:20px;
+box-shadow:0 20px 40px rgba(0,0,0,0.3);
+text-align:center;
+}
+
+input, textarea, select{
+padding:10px;
+margin:10px;
+width:80%;
+max-width:500px;
+border-radius:10px;
+border:1px solid #ccc;
+}
+
+button{
+padding:10px 20px;
+border:none;
+border-radius:20px;
+background:linear-gradient(45deg,#4f46e5,#ec4899);
+color:white;
+cursor:pointer;
+margin:10px;
+transition:0.3s;
+}
+
+button:hover{
+transform:scale(1.05);
+}
+
+.grid{
+display:grid;
+grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+gap:20px;
+margin-top:20px;
+}
+
+.tool{
+background:#f3f4f6;
+padding:20px;
+border-radius:15px;
+cursor:pointer;
+transition:0.3s;
+}
+
+.tool:hover{
+background:#ddd6fe;
+transform:scale(1.05);
+}
+
+.hidden{display:none;}
+canvas{max-width:100%;margin-top:20px;}
+</style>
+</head>
+
+<body>
+
+<div class="header">🚀 Pro Student Toolkit</div>
+
+<!-- LOGIN -->
+<div class="section" id="loginPage">
+<div class="card">
+<h2>Enter Your Name</h2>
+<input type="text" id="username">
+<button onclick="login()">Continue</button>
+<p id="error" style="color:red;"></p>
+</div>
+</div>
+
+<!-- DASHBOARD -->
+<div class="section hidden" id="dashboard">
+<div class="card">
+<h2 id="welcome"></h2>
+<div class="grid">
+<div class="tool" onclick="openTool('bg')">1️⃣ BG Remover</div>
+<div class="tool" onclick="openTool('textpdf')">2️⃣ Text to PDF</div>
+<div class="tool" onclick="openTool('multipdf')">3️⃣ Multiple Photo → PDF</div>
+<div class="tool" onclick="openTool('convert')">4️⃣ File Converter</div>
+<div class="tool" onclick="openTool('resize')">5️⃣ Photo Resize</div>
+</div>
+<button onclick="logout()">Logout</button>
+</div>
+</div>
+
+<!-- TOOL PAGE -->
+<div class="section hidden" id="toolPage">
+<div class="card">
+<h2 id="toolTitle"></h2>
+
+<!-- BG REMOVER -->
+<div id="bgTool" class="hidden">
+<input type="file" id="bgInput">
+<button onclick="removeBG()">Remove Background</button>
+<canvas id="bgCanvas"></canvas>
+<a id="bgDownload"></a>
+</div>
+
+<!-- TEXT TO PDF -->
+<div id="textTool" class="hidden">
+<textarea id="pdfText" rows="6"></textarea>
+<br>
+<select id="fontSize">
+<option value="10">Small</option>
+<option value="14">Medium</option>
+<option value="18">Large</option>
+</select>
+<button onclick="createTextPDF()">Download PDF</button>
+</div>
+
+<!-- MULTIPLE IMAGE PDF -->
+<div id="multiTool" class="hidden">
+<input type="file" id="multiInput" multiple>
+<button onclick="multiToPDF()">Convert to PDF</button>
+</div>
+
+<!-- FILE CONVERTER -->
+<div id="convertTool" class="hidden">
+<input type="file" id="convertInput">
+<select id="convertType">
+<option value="png">Convert to PNG</option>
+<option value="jpg">Convert to JPG</option>
+<option value="pdf">Convert to PDF</option>
+</select>
+<button onclick="convertFile()">Convert</button>
+</div>
+
+<!-- RESIZE -->
+<div id="resizeTool" class="hidden">
+<input type="file" id="resizeInput" multiple>
+<input type="number" id="resizePercent" placeholder="Resize % (e.g 50)">
+<button onclick="resizePhotos()">Resize</button>
+</div>
+
+<button onclick="back()">Back</button>
+</div>
+</div>
+
+<script>
+const { jsPDF } = window.jspdf;
+
+function login(){
+let name=document.getElementById("username").value.trim();
+if(!name){
+document.getElementById("error").innerText="Enter name";
+return;
+}
+document.getElementById("loginPage").classList.add("hidden");
+document.getElementById("dashboard").classList.remove("hidden");
+document.getElementById("welcome").innerText="Welcome "+name;
+}
+
+function logout(){location.reload();}
+
+function openTool(tool){
+document.getElementById("dashboard").classList.add("hidden");
+document.getElementById("toolPage").classList.remove("hidden");
+document.querySelectorAll("#toolPage > .card > div").forEach(d=>d.classList.add("hidden"));
+
+if(tool=="bg"){document.getElementById("bgTool").classList.remove("hidden");}
+if(tool=="textpdf"){document.getElementById("textTool").classList.remove("hidden");}
+if(tool=="multipdf"){document.getElementById("multiTool").classList.remove("hidden");}
+if(tool=="convert"){document.getElementById("convertTool").classList.remove("hidden");}
+if(tool=="resize"){document.getElementById("resizeTool").classList.remove("hidden");}
+}
+
+function back(){
+document.getElementById("toolPage").classList.add("hidden");
+document.getElementById("dashboard").classList.remove("hidden");
+}
+
+/* BG REMOVER BASIC */
+function removeBG(){
+let file=document.getElementById("bgInput").files[0];
+if(!file)return;
+let reader=new FileReader();
+reader.onload=function(e){
+let img=new Image();
+img.onload=function(){
+let canvas=document.getElementById("bgCanvas");
+let ctx=canvas.getContext("2d");
+canvas.width=img.width;
+canvas.height=img.height;
+ctx.drawImage(img,0,0);
+
+let imgData=ctx.getImageData(0,0,canvas.width,canvas.height);
+for(let i=0;i<imgData.data.length;i+=4){
+let r=imgData.data[i];
+let g=imgData.data[i+1];
+let b=imgData.data[i+2];
+if(r>200 && g>200 && b>200){
+imgData.data[i+3]=0;
+}
+}
+ctx.putImageData(imgData,0,0);
+let link=document.getElementById("bgDownload");
+link.innerText="Download PNG";
+link.href=canvas.toDataURL("image/png");
+link.download="removed.png";
+}
+img.src=e.target.result;
+}
+reader.readAsDataURL(file);
+}
+
+/* TEXT TO PDF */
+function createTextPDF(){
+let text=document.getElementById("pdfText").value;
+let size=document.getElementById("fontSize").value;
+let doc=new jsPDF();
+doc.setFontSize(size);
+doc.text(text,10,10);
+doc.save("text.pdf");
+}
+
+/* MULTIPLE IMAGE PDF */
+function multiToPDF(){
+let files=document.getElementById("multiInput").files;
+if(!files.length)return;
+let doc=new jsPDF();
+let count=0;
+for(let i=0;i<files.length;i++){
+let reader=new FileReader();
+reader.onload=function(e){
+if(count>0)doc.addPage();
+doc.addImage(e.target.result,'JPEG',10,10,180,160);
+count++;
+if(count===files.length){
+doc.save("multiple.pdf");
+}
+}
+reader.readAsDataURL(files[i]);
+}
+}
+
+/* FILE CONVERTER */
+function convertFile(){
+let file=document.getElementById("convertInput").files[0];
+let type=document.getElementById("convertType").value;
+if(!file)return;
+
+let reader=new FileReader();
+reader.onload=function(e){
+if(type=="pdf"){
+let doc=new jsPDF();
+doc.addImage(e.target.result,'JPEG',10,10,180,160);
+doc.save("converted.pdf");
+}else{
+let img=new Image();
+img.onload=function(){
+let canvas=document.createElement("canvas");
+canvas.width=img.width;
+canvas.height=img.height;
+canvas.getContext("2d").drawImage(img,0,0);
+let link=document.createElement("a");
+link.href=canvas.toDataURL("image/"+type);
+link.download="converted."+type;
+link.click();
+}
+img.src=e.target.result;
+}
+}
+reader.readAsDataURL(file);
+}
+
+/* RESIZE MULTIPLE */
+function resizePhotos(){
+let files=document.getElementById("resizeInput").files;
+let percent=document.getElementById("resizePercent").value;
+if(!files.length||!percent)return;
+
+for(let i=0;i<files.length;i++){
+let reader=new FileReader();
+reader.onload=function(e){
+let img=new Image();
+img.onload=function(){
+let canvas=document.createElement("canvas");
+canvas.width=img.width*(percent/100);
+canvas.height=img.height*(percent/100);
+canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height);
+let link=document.createElement("a");
+link.href=canvas.toDataURL("image/jpeg",0.8);
+link.download="resized_"+i+".jpg";
+link.click();
+}
+img.src=e.target.result;
+}
+reader.readAsDataURL(files[i]);
+}
+}
+</script>
+
+</body>
+</html>
